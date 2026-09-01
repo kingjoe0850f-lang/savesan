@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Zero-dependency auth + email-verification backend for SaveSan.",
   "engines": {
-    "node": ">=22.5.0"
+    "node": "22.11.0"
   },
   "scripts": {
     "start": "node server.js"
