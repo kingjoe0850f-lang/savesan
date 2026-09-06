@@ -1617,6 +1617,17 @@ input:focus, select:focus{ border-color: var(--brand); }
 
 <div class="toast" id="toast"></div>
 
+<div class="modal-backdrop" id="currencyBackdrop">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Change home currency</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin:-8px 0 16px;line-height:1.5;">Choose any ISO currency code, such as USD, EUR, NGN, JPY or AUD. Rates refresh daily when SaveSan opens.</p>
+    <div class="field"><label>Currency code</label><input id="currencyCode" maxlength="3" placeholder="USD" style="text-transform:uppercase"></div>
+    <div class="field"><label>Convert</label><select id="currencyScope"><option value="all">My full dashboard</option><option value="recent">Transactions from the last 14 days only</option></select></div>
+    <button class="submit-btn" id="currencySave">Update currency</button>
+  </div>
+</div>
+
 <script>
 // ===== config.js =====
 // config.js — point this at wherever the SaveSan backend (savesan-backend/)
@@ -1949,26 +1960,24 @@ async function refreshCurrencyRates(){
   return cached?.rates || null;
 }
 
-async function changeHomeCurrency(){
-  const code = (prompt('Enter a three-letter currency code (for example USD, EUR, NGN, JPY).', state.homeCurrency) || '').trim().toUpperCase();
+async function saveHomeCurrency(){
+  const code = document.getElementById('currencyCode').value.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(code) || code === state.homeCurrency) return;
   const rates = await refreshCurrencyRates();
   const rate = rates?.[code];
   if (!rate) return showToast('That currency is unavailable right now. Try again after rates refresh.');
-  const all = confirm(`Convert your full dashboard from ${state.homeCurrency} to ${code}? Choose Cancel to update selected transactions from the last 14 days only.`);
+  const all = document.getElementById('currencyScope').value === 'all';
   const convert = value => Number(value || 0) * rate;
   if (all) {
     state.balance = convert(state.balance);
     ['incomeSources','bills','goals','expenses'].forEach(key => state[key].forEach(item => { ['amount','target','current','weekly'].forEach(field => { if (typeof item[field] === 'number') item[field] = convert(item[field]); }); }));
   } else {
-    const recent = state.expenses.filter(e => Date.now() - new Date(e.date).getTime() <= 14 * 86400000);
-    const names = recent.map((e,i) => `${i + 1}. ${e.name} (${fmtAbs(e.amount)})`).join('\n');
-    const picks = prompt(`Choose transaction numbers from the last 14 days, separated by commas:\n${names}`, '');
-    (picks || '').split(',').map(x => Number(x.trim()) - 1).filter(i => recent[i]).forEach(i => { recent[i].amount = convert(recent[i].amount); recent[i].currency = code; recent[i].exchangeRate = rate; });
+    state.expenses.filter(e => Date.now() - new Date(e.date).getTime() <= 14 * 86400000)
+      .forEach(e => { e.amount = convert(e.amount); e.currency = code; e.exchangeRate = rate; });
   }
   state.homeCurrency = code;
   state.currencyRateSnapshot = { base: code, rates: { [code]: 1 }, fetchedAt: Date.now() };
-  notify(); showToast(`Home currency changed to ${code}`);
+  notify(); document.getElementById('currencyBackdrop').classList.remove('open'); showToast(`Home currency changed to ${code}`);
 }
 
 function addIncome({ name, amount, freq, date, customDays }){
@@ -3602,7 +3611,10 @@ function initAccountButton(){
 }
 
 function initCurrencyButton(){
-  document.getElementById('currencyBtn').addEventListener('click', changeHomeCurrency);
+  const backdrop = document.getElementById('currencyBackdrop');
+  document.getElementById('currencyBtn').addEventListener('click', () => { document.getElementById('currencyCode').value = state.homeCurrency; backdrop.classList.add('open'); });
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.classList.remove('open'); });
+  document.getElementById('currencySave').addEventListener('click', saveHomeCurrency);
 }
 
 // ---------------- Boot ----------------
