@@ -1,0 +1,12 @@
+{
+  "name": "savesan-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Zero-dependency auth + email-verification backend for SaveSan.",
+  "engines": {
+    "node": "22.11.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
