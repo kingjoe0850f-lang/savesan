@@ -1204,9 +1204,12 @@ input:focus, select:focus{ border-color: var(--brand); }
       <div class="field"><label>Amount</label><div class="amount-input"><span>£</span><input type="number" id="obIncAmount" placeholder="1200"></div></div>
       <div class="field"><label>Frequency</label>
         <select id="obIncFreq">
+          <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
+          <option value="biweekly">Biweekly · every 14 days</option>
           <option value="monthly">Monthly</option>
-          <option value="termly" selected>Termly</option>
+          <option value="yearly">Yearly</option>
+          <option value="custom">Custom interval</option>
           <option value="oneoff">One-off</option>
         </select>
       </div>
@@ -1235,8 +1238,10 @@ input:focus, select:focus{ border-color: var(--brand); }
       <div class="field"><label>Frequency</label>
         <select id="obBillFreq">
           <option value="weekly">Weekly</option>
+          <option value="biweekly">Biweekly · every 14 days</option>
           <option value="monthly" selected>Monthly</option>
-          <option value="termly">Termly</option>
+          <option value="yearly">Yearly</option>
+          <option value="custom">Custom interval</option>
         </select>
       </div>
       <div class="field"><label>Next due date</label><input type="date" id="obBillDate"></div>
@@ -1348,6 +1353,7 @@ input:focus, select:focus{ border-color: var(--brand); }
     <div class="wordmark">Save<span>San</span></div>
     <div style="display:flex; gap:8px;">
       <button class="account-btn" id="accountBtn">A</button>
+      <button class="settings-btn" id="currencyBtn" aria-label="Change currency">£</button>
       <button class="settings-btn" id="settingsBtn" aria-label="Budget split settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
       </button>
@@ -1377,6 +1383,7 @@ input:focus, select:focus{ border-color: var(--brand); }
         <div class="balance-sub" id="balanceSub">Updated just now</div>
         <svg class="sparkline" id="sparkline" viewBox="0 0 300 44" preserveAspectRatio="none"></svg>
       </div>
+      <div style="font-size:10px;color:var(--text-faint);margin:6px 2px 0;">Exchange rates update daily · <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">Rates by ExchangeRate-API</a></div>
 
       <div class="metric-grid">
         <div class="metric-card">
@@ -1471,9 +1478,12 @@ input:focus, select:focus{ border-color: var(--brand); }
           <div class="field"><label>Amount</label><div class="amount-input"><span>£</span><input type="number" id="incAmount" placeholder="1200"></div></div>
           <div class="field"><label>Frequency</label>
             <select id="incFreq">
+              <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
+              <option value="biweekly">Biweekly · every 14 days</option>
               <option value="monthly">Monthly</option>
-              <option value="termly" selected>Termly</option>
+              <option value="yearly">Yearly</option>
+              <option value="custom">Custom interval</option>
               <option value="oneoff">One-off</option>
             </select>
           </div>
@@ -1510,8 +1520,10 @@ input:focus, select:focus{ border-color: var(--brand); }
           <div class="field"><label>Frequency</label>
             <select id="billFreq">
               <option value="weekly">Weekly</option>
+              <option value="biweekly">Biweekly · every 14 days</option>
               <option value="monthly" selected>Monthly</option>
-              <option value="termly">Termly</option>
+              <option value="yearly">Yearly</option>
+              <option value="custom">Custom interval</option>
             </select>
           </div>
           <div class="field"><label>Next due date</label><input type="date" id="billDate"></div>
@@ -1654,15 +1666,13 @@ function todayISO(){
 }
 
 function fmt(n){
-  const neg = n < 0;
-  const v = Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (neg ? '−' : '') + '£' + v;
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: state.homeCurrency || 'GBP' }).format(n);
 }
 
 // Same as fmt() but never shows the minus sign — useful when
 // the sign is already implied by colour/context (e.g. a bill row).
 function fmtAbs(n){
-  return '£' + Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: state.homeCurrency || 'GBP' }).format(Math.abs(n));
 }
 
 function daysBetween(a, b){
@@ -1744,6 +1754,10 @@ const state = {
   budgetSplit: { needs: 50, wants: 30, savings: 20 },
 
   balance: 0,
+  homeCurrency: 'GBP',
+  currencyRateSnapshot: null,
+  lastCheckInDate: null,
+  recurringEvents: [],
 
   incomeSources: [],
 
@@ -1760,7 +1774,8 @@ const state = {
 };
 
 const STORAGE_PREFIX = 'savesan:v1';
-const PERSISTED_STATE_KEYS = ['onboarded', 'lastReviewedWeekStart', 'weeksUnderBudgetStreak', 'budgetSplit', 'balance', 'incomeSources', 'bills', 'goals', 'expenses'];
+const PERSISTED_STATE_KEYS = ['onboarded', 'lastReviewedWeekStart', 'weeksUnderBudgetStreak', 'budgetSplit', 'balance', 'homeCurrency', 'currencyRateSnapshot', 'lastCheckInDate', 'recurringEvents', 'incomeSources', 'bills', 'goals', 'expenses'];
+let dataSyncTimer;
 
 function storageKey(suffix){ return `${STORAGE_PREFIX}:${suffix}`; }
 
@@ -1773,12 +1788,14 @@ function persistState(){
     localStorage.setItem(storageKey('session'), JSON.stringify(state.auth));
     const saved = Object.fromEntries(PERSISTED_STATE_KEYS.map(key => [key, state[key]]));
     localStorage.setItem(storageKey(`data:${state.auth.user.id}`), JSON.stringify(saved));
+    clearTimeout(dataSyncTimer);
+    dataSyncTimer = setTimeout(() => apiRequest('/api/data', { data: saved }, state.auth.token, 'PUT').catch(() => {}), 600);
   } catch {
     // The app remains usable if browser storage is unavailable.
   }
 }
 
-function restoreSavedData(userId){
+async function restoreSavedData(userId){
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey(`data:${userId}`)) || '{}');
     PERSISTED_STATE_KEYS.forEach(key => {
@@ -1787,6 +1804,13 @@ function restoreSavedData(userId){
   } catch {
     // Corrupt or unavailable local data should never prevent sign-in.
   }
+  try {
+    const remote = await apiRequest('/api/data', null, state.auth.token, 'GET');
+    if (remote.ok && remote.data) {
+      PERSISTED_STATE_KEYS.forEach(key => { if (Object.hasOwn(remote.data, key)) state[key] = remote.data[key]; });
+      localStorage.setItem(storageKey(`data:${userId}`), JSON.stringify(remote.data));
+    }
+  } catch {}
 }
 
 // Sensible starting point for whether a category is a Need or a
@@ -1901,7 +1925,8 @@ async function restoreSession(){
     }
     state.auth.user = result.user;
     state.auth.token = saved.token;
-    restoreSavedData(result.user.id);
+    await restoreSavedData(result.user.id);
+    refreshCurrencyRates();
   } catch {
     localStorage.removeItem(storageKey('session'));
   }
@@ -1913,15 +1938,48 @@ function setBalance(val){
   notify();
 }
 
-function addIncome({ name, amount, freq, date }){
-  state.incomeSources.push({ id: uid(), name, amount, freq, date: date || todayISO() });
+async function refreshCurrencyRates(){
+  const cached = state.currencyRateSnapshot;
+  if (cached && cached.base === state.homeCurrency && Date.now() - cached.fetchedAt < 86400000) return cached.rates;
+  try {
+    const res = await fetch(`https://open.er-api.com/v6/latest/${state.homeCurrency}`);
+    const data = await res.json();
+    if (data.result === 'success') { state.currencyRateSnapshot = { base: state.homeCurrency, rates: data.rates, fetchedAt: Date.now() }; notify(); return data.rates; }
+  } catch {}
+  return cached?.rates || null;
+}
+
+async function changeHomeCurrency(){
+  const code = (prompt('Enter a three-letter currency code (for example USD, EUR, NGN, JPY).', state.homeCurrency) || '').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code) || code === state.homeCurrency) return;
+  const rates = await refreshCurrencyRates();
+  const rate = rates?.[code];
+  if (!rate) return showToast('That currency is unavailable right now. Try again after rates refresh.');
+  const all = confirm(`Convert your full dashboard from ${state.homeCurrency} to ${code}? Choose Cancel to update selected transactions from the last 14 days only.`);
+  const convert = value => Number(value || 0) * rate;
+  if (all) {
+    state.balance = convert(state.balance);
+    ['incomeSources','bills','goals','expenses'].forEach(key => state[key].forEach(item => { ['amount','target','current','weekly'].forEach(field => { if (typeof item[field] === 'number') item[field] = convert(item[field]); }); }));
+  } else {
+    const recent = state.expenses.filter(e => Date.now() - new Date(e.date).getTime() <= 14 * 86400000);
+    const names = recent.map((e,i) => `${i + 1}. ${e.name} (${fmtAbs(e.amount)})`).join('\n');
+    const picks = prompt(`Choose transaction numbers from the last 14 days, separated by commas:\n${names}`, '');
+    (picks || '').split(',').map(x => Number(x.trim()) - 1).filter(i => recent[i]).forEach(i => { recent[i].amount = convert(recent[i].amount); recent[i].currency = code; recent[i].exchangeRate = rate; });
+  }
+  state.homeCurrency = code;
+  state.currencyRateSnapshot = { base: code, rates: { [code]: 1 }, fetchedAt: Date.now() };
+  notify(); showToast(`Home currency changed to ${code}`);
+}
+
+function addIncome({ name, amount, freq, date, customDays }){
+  state.incomeSources.push({ id: uid(), name, amount, freq, customDays: customDays || null, date: date || todayISO() });
   notify();
 }
 
-function addBill({ name, amount, category, freq, needWant, date }){
+function addBill({ name, amount, category, freq, needWant, date, customDays }){
   state.bills.push({
     id: uid(), name, amount, category,
-    freq: freq || 'monthly',
+    freq: freq || 'monthly', customDays: customDays || null,
     needWant: needWant || DEFAULT_NEED_WANT[category] || 'want',
     date: date || todayISO()
   });
@@ -1967,6 +2025,35 @@ function completeOnboarding(){
   notify();
 }
 
+let checkinOpen = false;
+function runDailyRecurringCheckin(){
+  if (checkinOpen || state.lastCheckInDate === todayISO()) return;
+  const due = state.bills.filter(b => new Date(b.date) <= new Date(todayISO()));
+  if (!due.length) { state.lastCheckInDate = todayISO(); notify(); return; }
+  checkinOpen = true;
+  due.forEach(bill => {
+    const paid = confirm(`${bill.name} (${fmtAbs(bill.amount)}) was due ${relDate(bill.date).toLowerCase()}. Was it paid?`);
+    if (paid) {
+      addExpense({ name: bill.name, amount: bill.amount, category: bill.category, date: bill.date });
+      const suggested = advanceByFreq(bill.date, bill.freq, bill.customDays).toISOString().slice(0, 10);
+      bill.date = prompt(`When is the next ${bill.name} payment?`, suggested) || suggested;
+      state.recurringEvents.push({ id: uid(), billId: bill.id, status: 'paid', date: todayISO() });
+    } else {
+      const next = prompt(`Skip ${bill.name}. Enter its new next-payment date (YYYY-MM-DD), or leave blank if there are no future payments.`, '');
+      if (next) { bill.date = next; state.recurringEvents.push({ id: uid(), billId: bill.id, status: 'skipped', date: todayISO() }); }
+      else { state.bills = state.bills.filter(b => b.id !== bill.id); state.recurringEvents.push({ id: uid(), billId: bill.id, status: 'ended', date: todayISO() }); }
+    }
+  });
+  if (confirm('Did you make any other expenses since your last check-in?')) {
+    const name = prompt('What was it?', '');
+    const amount = Number(prompt('How much was it?', '0'));
+    if (name && amount > 0) addExpense({ name, amount, category: 'Other', date: prompt('Date (YYYY-MM-DD)', todayISO()) || todayISO() });
+  }
+  state.lastCheckInDate = todayISO();
+  checkinOpen = false;
+  notify();
+}
+
 // ---------------- Derived / computed selectors ----------------
 // Views read state through these instead of recomputing logic
 // themselves, so the "safe to spend" formula only lives in one place.
@@ -1983,9 +2070,13 @@ function getUpcomingBills(beforeDate){
 }
 
 // Advances a date by one occurrence of a bill's recurrence.
-function advanceByFreq(date, freq){
+function advanceByFreq(date, freq, customDays){
   const d = new Date(date);
-  if (freq === 'weekly') d.setDate(d.getDate() + 7);
+  if (freq === 'daily') d.setDate(d.getDate() + 1);
+  else if (freq === 'weekly') d.setDate(d.getDate() + 7);
+  else if (freq === 'biweekly') d.setDate(d.getDate() + 14);
+  else if (freq === 'yearly') d.setFullYear(d.getFullYear() + 1);
+  else if (freq === 'custom') d.setDate(d.getDate() + Math.max(1, Number(customDays) || 30));
   else if (freq === 'termly') d.setDate(d.getDate() + 91); // ~13 weeks
   else d.setMonth(d.getMonth() + 1); // monthly, and the default for anything unrecognized
   return d;
@@ -1998,11 +2089,11 @@ function projectBillOccurrences(bill, rangeStart, rangeEnd){
   const occurrences = [];
   let d = new Date(bill.date);
   let guard = 0;
-  while (d < rangeStart && guard < 500){ d = advanceByFreq(d, bill.freq); guard++; }
+  while (d < rangeStart && guard < 500){ d = advanceByFreq(d, bill.freq, bill.customDays); guard++; }
   guard = 0;
   while (d < rangeEnd && guard < 500){
     occurrences.push(new Date(d));
-    d = advanceByFreq(d, bill.freq);
+    d = advanceByFreq(d, bill.freq, bill.customDays);
     guard++;
   }
   return occurrences;
@@ -2889,7 +2980,9 @@ function initOnboarding(){
     const freq = document.getElementById('obIncFreq').value;
     const date = document.getElementById('obIncDate').value;
     if (!name || !amount){ showToast('Add a name and amount'); return; }
-    addIncome({ name, amount, freq, date });
+    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '21')) : null;
+    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    addIncome({ name, amount, freq, date, customDays });
     document.getElementById('obIncName').value = '';
     document.getElementById('obIncAmount').value = '';
     document.getElementById('obIncDate').value = '';
@@ -2920,7 +3013,9 @@ function initOnboarding(){
     const freq = document.getElementById('obBillFreq').value;
     const date = document.getElementById('obBillDate').value;
     if (!name || !amount){ showToast('Add a name and amount'); return; }
-    addBill({ name, amount, category, freq, needWant: obBillNeedWant, date });
+    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '30')) : null;
+    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    addBill({ name, amount, category, freq, needWant: obBillNeedWant, date, customDays });
     document.getElementById('obBillName').value = '';
     document.getElementById('obBillAmount').value = '';
     document.getElementById('obBillDate').value = '';
@@ -3199,7 +3294,9 @@ function initIncomeView(){
     const freq = document.getElementById('incFreq').value;
     const date = document.getElementById('incDate').value;
     if (!name || !amount){ showToast('Add a name and amount'); return; }
-    addIncome({ name, amount, freq, date });
+    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '21')) : null;
+    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    addIncome({ name, amount, freq, date, customDays });
     document.getElementById('incName').value = '';
     document.getElementById('incAmount').value = '';
     document.getElementById('incDate').value = '';
@@ -3248,7 +3345,9 @@ function initBillsView(){
     const freq = document.getElementById('billFreq').value;
     const date = document.getElementById('billDate').value;
     if (!name || !amount){ showToast('Add a name and amount'); return; }
-    addBill({ name, amount, category, freq, needWant: billNeedWant, date });
+    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '30')) : null;
+    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    addBill({ name, amount, category, freq, needWant: billNeedWant, date, customDays });
     document.getElementById('billName').value = '';
     document.getElementById('billAmount').value = '';
     document.getElementById('billDate').value = '';
@@ -3458,6 +3557,7 @@ function renderAll(){
   renderGoals();
   renderTransactions();
   runWeeklyReviewCheck();
+  setTimeout(runDailyRecurringCheckin, 250);
 }
 subscribe(renderAll);
 
@@ -3501,6 +3601,10 @@ function initAccountButton(){
   });
 }
 
+function initCurrencyButton(){
+  document.getElementById('currencyBtn').addEventListener('click', changeHomeCurrency);
+}
+
 // ---------------- Boot ----------------
 initNav();
 initThemeToggle();
@@ -3515,6 +3619,7 @@ initAuthView();
 initOnboarding();
 initWeeklyReview();
 initAccountButton();
+initCurrencyButton();
 
 restoreSession().finally(renderAll);
 

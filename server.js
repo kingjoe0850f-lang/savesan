@@ -51,6 +51,11 @@ const findManagedUser = db.prepare('SELECT id, name, email, is_disabled FROM use
 const setUserDisabled = db.prepare('UPDATE users SET is_disabled = ? WHERE id = ?');
 const deleteManagedUser = db.prepare('DELETE FROM users WHERE id = ?');
 const deleteUserSessions = db.prepare('DELETE FROM sessions WHERE user_id = ?');
+const findUserData = db.prepare('SELECT data_json, updated_at FROM user_data WHERE user_id = ?');
+const upsertUserData = db.prepare(`
+  INSERT INTO user_data (user_id, data_json, updated_at) VALUES (?, ?, ?)
+  ON CONFLICT (user_id) DO UPDATE SET data_json = EXCLUDED.data_json, updated_at = EXCLUDED.updated_at
+`);
 
 // ---------------- Helpers ----------------
 // The integrated app uses same-origin requests, so CORS is disabled by
@@ -248,6 +253,32 @@ async function handleLogout(req, res){
   sendJSON(res, 200, { ok: true });
 }
 
+async function requireUser(req, res){
+  const token = getBearerToken(req);
+  const session = token && await findSession.get(token);
+  if (!session || Date.now() > session.expires_at) {
+    return null;
+  }
+  return session.user_id;
+}
+
+async function handleUserData(req, res){
+  const userId = await requireUser(req, res);
+  if (!userId) return sendJSON(res, 401, { ok: false, error: 'Not signed in.' });
+  if (req.method === 'GET') {
+    const saved = await findUserData.get(userId);
+    return sendJSON(res, 200, { ok: true, data: saved ? JSON.parse(saved.data_json) : null, updatedAt: saved?.updated_at || null });
+  }
+  const body = await readBody(req);
+  if (!body || typeof body.data !== 'object' || Array.isArray(body.data)) {
+    return sendJSON(res, 400, { ok: false, error: 'Invalid data.' });
+  }
+  const serialized = JSON.stringify(body.data);
+  if (serialized.length > 500000) return sendJSON(res, 413, { ok: false, error: 'Saved data is too large.' });
+  await upsertUserData.run(userId, serialized, Date.now());
+  sendJSON(res, 200, { ok: true });
+}
+
 async function handleAdminLogin(req, res){
   if (!adminConfigured()){
     return sendJSON(res, 503, { ok: false, error: 'Admin access has not been configured yet.' });
@@ -307,6 +338,8 @@ const routes = {
   'POST /api/login': handleLogin,
   'GET /api/me': handleMe,
   'POST /api/logout': handleLogout,
+  'GET /api/data': handleUserData,
+  'PUT /api/data': handleUserData,
   'POST /api/admin/login': handleAdminLogin,
   'GET /api/admin/users': handleAdminUsers,
   'POST /api/admin/logout': handleAdminLogout

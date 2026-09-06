@@ -66,4 +66,10 @@ await pool.query(`
     created_at BIGINT NOT NULL,
     expires_at BIGINT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS user_data (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    data_json TEXT NOT NULL,
+    updated_at BIGINT NOT NULL
+  );
 `);
