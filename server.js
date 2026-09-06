@@ -4,7 +4,7 @@
 // five routes, plain node:http keeps this readable end to end in one file.
 
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -19,8 +19,10 @@ const CODE_TTL_MS = 10 * 60 * 1000;      // codes expire after 10 minutes
 const RESEND_COOLDOWN_MS = 60 * 1000;     // one resend per 60 seconds
 const MAX_ATTEMPTS = 5;                   // wrong-code guesses allowed per code
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const indexPath = path.join(__dirname, 'index.html');
+const adminPath = path.join(__dirname, 'admin.html');
 
 // ---------------- Prepared statements ----------------
 const findUserByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
@@ -41,6 +43,14 @@ const deletePending = db.prepare('DELETE FROM pending_verifications WHERE email 
 const insertSession = db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)');
 const findSession = db.prepare('SELECT * FROM sessions WHERE token = ?');
 const deleteSession = db.prepare('DELETE FROM sessions WHERE token = ?');
+const findAdminSession = db.prepare('SELECT * FROM admin_sessions WHERE token = ?');
+const insertAdminSession = db.prepare('INSERT INTO admin_sessions (token, created_at, expires_at) VALUES (?, ?, ?)');
+const deleteAdminSession = db.prepare('DELETE FROM admin_sessions WHERE token = ?');
+const listUsers = db.prepare('SELECT id, name, email, dob, phone, created_at, is_disabled FROM users ORDER BY created_at DESC');
+const findManagedUser = db.prepare('SELECT id, name, email, is_disabled FROM users WHERE id = ?');
+const setUserDisabled = db.prepare('UPDATE users SET is_disabled = ? WHERE id = ?');
+const deleteManagedUser = db.prepare('DELETE FROM users WHERE id = ?');
+const deleteUserSessions = db.prepare('DELETE FROM sessions WHERE user_id = ?');
 
 // ---------------- Helpers ----------------
 // The integrated app uses same-origin requests, so CORS is disabled by
@@ -82,6 +92,32 @@ function getBearerToken(req){
   const header = req.headers['authorization'] || '';
   const match = header.match(/^Bearer (.+)$/);
   return match ? match[1] : null;
+}
+
+function getAdminToken(req){
+  const header = req.headers['x-admin-token'] || '';
+  return typeof header === 'string' && header ? header : null;
+}
+
+function adminConfigured(){
+  return Boolean(process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD);
+}
+
+function secretsMatch(a, b){
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function requireAdmin(req, res){
+  const token = getAdminToken(req);
+  const session = token && findAdminSession.get(token);
+  if (!session || Date.now() > session.expires_at){
+    if (token) deleteAdminSession.run(token);
+    sendJSON(res, 401, { ok: false, error: 'Admin sign-in required.' });
+    return false;
+  }
+  return true;
 }
 
 // ---------------- Route handlers ----------------
@@ -186,6 +222,9 @@ async function handleLogin(req, res){
   if (!user || !isValidEmail(email) || !verifyPassword(password, user.password_hash)){
     return sendJSON(res, 401, { ok: false, error: 'Incorrect email or password.' });
   }
+  if (user.is_disabled){
+    return sendJSON(res, 403, { ok: false, error: 'This account has been disabled. Please contact SaveSan support.' });
+  }
 
   const token = generateSessionToken();
   insertSession.run(token, user.id, Date.now(), Date.now() + SESSION_TTL_MS);
@@ -209,6 +248,57 @@ async function handleLogout(req, res){
   sendJSON(res, 200, { ok: true });
 }
 
+async function handleAdminLogin(req, res){
+  if (!adminConfigured()){
+    return sendJSON(res, 503, { ok: false, error: 'Admin access has not been configured yet.' });
+  }
+  const body = await readBody(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '');
+  if (!secretsMatch(email, process.env.ADMIN_EMAIL.toLowerCase()) || !secretsMatch(password, process.env.ADMIN_PASSWORD)){
+    return sendJSON(res, 401, { ok: false, error: 'Incorrect admin email or password.' });
+  }
+  const token = generateSessionToken();
+  insertAdminSession.run(token, Date.now(), Date.now() + ADMIN_SESSION_TTL_MS);
+  sendJSON(res, 200, { ok: true, token, expiresAt: Date.now() + ADMIN_SESSION_TTL_MS });
+}
+
+async function handleAdminUsers(req, res){
+  if (!requireAdmin(req, res)) return;
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const query = String(url.searchParams.get('q') || '').trim().toLowerCase();
+  const users = listUsers.all()
+    .filter(user => !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))
+    .map(user => ({ ...user, is_disabled: Boolean(user.is_disabled) }));
+  sendJSON(res, 200, { ok: true, users });
+}
+
+async function handleAdminUserAction(req, res){
+  if (!requireAdmin(req, res)) return;
+  const userId = new URL(req.url, `http://${req.headers.host}`).pathname.split('/').at(-1);
+  const user = findManagedUser.get(userId);
+  if (!user) return sendJSON(res, 404, { ok: false, error: 'User not found.' });
+  const body = await readBody(req);
+  if (body.action === 'disable' || body.action === 'enable'){
+    const disabled = body.action === 'disable';
+    setUserDisabled.run(disabled ? 1 : 0, userId);
+    if (disabled) deleteUserSessions.run(userId);
+    return sendJSON(res, 200, { ok: true, user: { ...user, is_disabled: disabled } });
+  }
+  if (body.action === 'delete'){
+    deleteUserSessions.run(userId);
+    deleteManagedUser.run(userId);
+    return sendJSON(res, 200, { ok: true });
+  }
+  sendJSON(res, 400, { ok: false, error: 'Unsupported account action.' });
+}
+
+async function handleAdminLogout(req, res){
+  const token = getAdminToken(req);
+  if (token) deleteAdminSession.run(token);
+  sendJSON(res, 200, { ok: true });
+}
+
 // ---------------- Router ----------------
 const routes = {
   'POST /api/signup': handleSignup,
@@ -216,7 +306,10 @@ const routes = {
   'POST /api/resend': handleResend,
   'POST /api/login': handleLogin,
   'GET /api/me': handleMe,
-  'POST /api/logout': handleLogout
+  'POST /api/logout': handleLogout,
+  'POST /api/admin/login': handleAdminLogin,
+  'GET /api/admin/users': handleAdminUsers,
+  'POST /api/admin/logout': handleAdminLogout
 };
 
 const server = createServer(async (req, res) => {
@@ -224,15 +317,18 @@ const server = createServer(async (req, res) => {
     return sendJSON(res, 204, {});
   }
   const url = new URL(req.url, `http://${req.headers.host}`);
-  if (req.method === 'GET' && url.pathname === '/'){
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')){
     try {
-      const html = await readFile(indexPath);
+      const html = await readFile(url.pathname === '/admin' ? adminPath : indexPath);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(html);
     } catch (err) {
       console.error(err);
       return sendJSON(res, 500, { ok: false, error: 'Could not load the web app.' });
     }
+  }
+  if (req.method === 'POST' && url.pathname.startsWith('/api/admin/users/')){
+    return handleAdminUserAction(req, res);
   }
   const key = `${req.method} ${url.pathname}`;
   const handler = routes[key];

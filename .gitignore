@@ -1,4 +1,1 @@
-.env
 savesan.db
-node_modules/
-*.log

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SaveSan Admin</title>
+  <style>
+    :root{--ink:#15221c;--muted:#68766e;--brand:#159173;--danger:#c63c30;--line:#dce5df;--paper:#fff;--bg:#f5f4ef}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif}
+    .shell{max-width:1120px;margin:auto;padding:36px 20px 64px}.brand{font:700 25px Georgia,serif}.brand em{color:var(--brand)}
+    .login{max-width:390px;margin:70px auto;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:30px;box-shadow:0 18px 38px #20302613}
+    h1{margin:8px 0 4px;font:700 30px Georgia,serif}p{color:var(--muted);margin:0 0 22px} label{display:block;font-weight:700;margin:16px 0 6px}
+    input{width:100%;padding:12px;border:1px solid #bac8bf;border-radius:9px;font:inherit;background:#fff}button{border:0;border-radius:9px;padding:10px 14px;font:700 14px inherit;cursor:pointer}
+    .primary{background:var(--brand);color:white;width:100%;margin-top:20px}.header{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:28px}.actions{display:flex;gap:10px;align-items:center}.ghost{background:#e8efeb;color:var(--ink)}
+    .toolbar{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}.toolbar input{max-width:360px}.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:15px 16px;border-bottom:1px solid var(--line);vertical-align:middle}th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}tr:last-child td{border-bottom:0}.sub{display:block;color:var(--muted);font-size:13px}.badge{display:inline-block;padding:3px 8px;border-radius:99px;font-size:12px;font-weight:700;background:#e7f5ef;color:#087153}.badge.off{background:#fde8e6;color:#a82e22}.mini{background:#edf2ee;color:#24352c;padding:7px 10px}.mini.danger{background:#fde8e6;color:var(--danger)}.row-actions{display:flex;gap:7px;justify-content:flex-end}.notice{min-height:22px;color:var(--danger);margin-top:14px}.empty{padding:34px;text-align:center;color:var(--muted)}
+    @media(max-width:720px){.shell{padding:24px 12px}.header{align-items:flex-start;flex-direction:column}.card{overflow:auto}table{min-width:720px}.toolbar input{max-width:none}.hide-sm{display:none}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="brand">Save<em>San</em></div>
+    <section id="loginView" class="login">
+      <h1>Owner access</h1>
+      <p>Manage SaveSan accounts securely.</p>
+      <form id="loginForm">
+        <label for="email">Admin email</label><input id="email" type="email" autocomplete="username" required>
+        <label for="password">Admin password</label><input id="password" type="password" autocomplete="current-password" required>
+        <button class="primary">Sign in</button><div id="loginNotice" class="notice" role="alert"></div>
+      </form>
+    </section>
+    <section id="adminView" hidden>
+      <header class="header"><div><h1>Users</h1><p id="count">Loading accounts…</p></div><div class="actions"><button id="refresh" class="ghost">Refresh</button><button id="logout" class="ghost">Sign out</button></div></header>
+      <div class="toolbar"><input id="search" type="search" placeholder="Search by name or email"></div>
+      <div class="card"><table><thead><tr><th>User</th><th class="hide-sm">Joined</th><th>Status</th><th></th></tr></thead><tbody id="users"><tr><td colspan="4" class="empty">Loading users…</td></tr></tbody></table></div>
+      <div id="adminNotice" class="notice" role="alert"></div>
+    </section>
+  </main>
+  <script>
+    const tokenKey='savesan_admin_token';
+    const loginView=document.querySelector('#loginView'), adminView=document.querySelector('#adminView');
+    let token=localStorage.getItem(tokenKey), users=[];
+    const headers=()=>({'Content-Type':'application/json','X-Admin-Token':token||''});
+    function showAdmin(on){loginView.hidden=on;adminView.hidden=!on}
+    function setNotice(target,message=''){document.querySelector(target).textContent=message}
+    function escapeHtml(value){const el=document.createElement('div');el.textContent=value;return el.innerHTML}
+    function formatDate(value){return new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(value))}
+    function render(){const q=document.querySelector('#search').value.trim().toLowerCase();const rows=users.filter(u=>!q||u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q));document.querySelector('#count').textContent=`${users.length} registered ${users.length===1?'user':'users'}`;document.querySelector('#users').innerHTML=rows.length?rows.map(u=>`<tr><td><strong>${escapeHtml(u.name)}</strong><span class="sub">${escapeHtml(u.email)}</span></td><td class="hide-sm">${formatDate(u.created_at)}</td><td><span class="badge ${u.is_disabled?'off':''}">${u.is_disabled?'Disabled':'Active'}</span></td><td><div class="row-actions"><button class="mini" data-action="${u.is_disabled?'enable':'disable'}" data-id="${u.id}">${u.is_disabled?'Enable':'Disable'}</button><button class="mini danger" data-action="delete" data-id="${u.id}">Delete</button></div></td></tr>`).join(''):'<tr><td colspan="4" class="empty">No matching users.</td></tr>'}
+    async function loadUsers(){setNotice('#adminNotice');const res=await fetch('/api/admin/users',{headers:headers()});if(res.status===401){token=null;localStorage.removeItem(tokenKey);showAdmin(false);return}const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load users.');users=data.users;render()}
+    document.querySelector('#loginForm').addEventListener('submit',async event=>{event.preventDefault();setNotice('#loginNotice');const res=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value,password:password.value})});const data=await res.json();if(!res.ok)return setNotice('#loginNotice',data.error||'Sign-in failed.');token=data.token;localStorage.setItem(tokenKey,token);password.value='';showAdmin(true);loadUsers().catch(e=>setNotice('#adminNotice',e.message))});
+    document.querySelector('#search').addEventListener('input',render);document.querySelector('#refresh').addEventListener('click',()=>loadUsers().catch(e=>setNotice('#adminNotice',e.message)));
+    document.querySelector('#logout').addEventListener('click',async()=>{await fetch('/api/admin/logout',{method:'POST',headers:headers()});token=null;localStorage.removeItem(tokenKey);showAdmin(false)});
+    document.querySelector('#users').addEventListener('click',async event=>{const button=event.target.closest('button[data-action]');if(!button)return;const action=button.dataset.action;const user=users.find(u=>u.id===button.dataset.id);const message=action==='delete'?`Permanently delete ${user.email}? This cannot be undone.`:`${action==='disable'?'Disable':'Enable'} ${user.email}?`;if(!confirm(message))return;try{const res=await fetch(`/api/admin/users/${button.dataset.id}`,{method:'POST',headers:headers(),body:JSON.stringify({action})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not update account.');await loadUsers()}catch(e){setNotice('#adminNotice',e.message)}});
+    if(token){showAdmin(true);loadUsers().catch(e=>setNotice('#adminNotice',e.message));}
+  </script>
+</body>
+</html>

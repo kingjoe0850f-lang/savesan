@@ -41,4 +41,16 @@ db.exec(`
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS admin_sessions (
+    token TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
 `);
+
+// Keep databases created before the admin area compatible.
+const userColumns = db.prepare("PRAGMA table_info(users)").all();
+if (!userColumns.some(column => column.name === 'is_disabled')) {
+  db.exec('ALTER TABLE users ADD COLUMN is_disabled INTEGER NOT NULL DEFAULT 0');
+}
