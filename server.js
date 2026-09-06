@@ -109,11 +109,11 @@ function secretsMatch(a, b){
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function requireAdmin(req, res){
+async function requireAdmin(req, res){
   const token = getAdminToken(req);
-  const session = token && findAdminSession.get(token);
+  const session = token && await findAdminSession.get(token);
   if (!session || Date.now() > session.expires_at){
-    if (token) deleteAdminSession.run(token);
+    if (token) await deleteAdminSession.run(token);
     sendJSON(res, 401, { ok: false, error: 'Admin sign-in required.' });
     return false;
   }
@@ -127,7 +127,7 @@ async function handleSignup(req, res){
   const { name, email, password, dob, phone } = body;
   const errors = validateSignup({ name, email, password, dob, phone });
 
-  if (findUserByEmail.get(String(email || '').toLowerCase())){
+  if (await findUserByEmail.get(String(email || '').toLowerCase())){
     errors.email = 'An account with this email already exists.';
   }
   if (Object.keys(errors).length){
@@ -145,7 +145,7 @@ async function handleSignup(req, res){
     phone
   };
 
-  upsertPending.run(normalizedEmail, JSON.stringify(draft), code, Date.now() + CODE_TTL_MS, Date.now());
+  await upsertPending.run(normalizedEmail, JSON.stringify(draft), code, Date.now() + CODE_TTL_MS, Date.now());
 
   try {
     await sendVerificationEmail(normalizedEmail, code);
@@ -161,27 +161,27 @@ async function handleVerify(req, res){
   const email = String(body.email || '').toLowerCase();
   const code = String(body.code || '');
 
-  const pending = findPending.get(email);
+  const pending = await findPending.get(email);
   if (!pending) return sendJSON(res, 400, { ok: false, error: 'Nothing to verify — please sign up again.' });
   if (Date.now() > pending.expires_at){
-    deletePending.run(email);
+    await deletePending.run(email);
     return sendJSON(res, 400, { ok: false, error: 'That code has expired. Please request a new one.' });
   }
   if (pending.attempts >= MAX_ATTEMPTS){
-    deletePending.run(email);
+    await deletePending.run(email);
     return sendJSON(res, 429, { ok: false, error: 'Too many incorrect attempts. Please sign up again.' });
   }
   if (code !== pending.code){
-    bumpAttempts.run(email);
+    await bumpAttempts.run(email);
     return sendJSON(res, 400, { ok: false, error: 'That code doesn\u2019t match. Check it and try again.' });
   }
 
   const draft = JSON.parse(pending.draft_json);
-  insertUser.run(draft.id, draft.name, draft.email, draft.password_hash, draft.dob, draft.phone, Date.now());
-  deletePending.run(email);
+  await insertUser.run(draft.id, draft.name, draft.email, draft.password_hash, draft.dob, draft.phone, Date.now());
+  await deletePending.run(email);
 
   const token = generateSessionToken();
-  insertSession.run(token, draft.id, Date.now(), Date.now() + SESSION_TTL_MS);
+  await insertSession.run(token, draft.id, Date.now(), Date.now() + SESSION_TTL_MS);
 
   sendJSON(res, 200, { ok: true, token, user: publicUser({ id: draft.id, name: draft.name, email: draft.email }) });
 }
@@ -189,7 +189,7 @@ async function handleVerify(req, res){
 async function handleResend(req, res){
   const body = await readBody(req);
   const email = String(body.email || '').toLowerCase();
-  const pending = findPending.get(email);
+  const pending = await findPending.get(email);
   if (!pending) return sendJSON(res, 400, { ok: false, error: 'No signup in progress for that email.' });
 
   if (Date.now() - pending.last_sent_at < RESEND_COOLDOWN_MS){
@@ -198,7 +198,7 @@ async function handleResend(req, res){
   }
 
   const code = generateVerificationCode();
-  upsertPending.run(email, pending.draft_json, code, Date.now() + CODE_TTL_MS, Date.now());
+  await upsertPending.run(email, pending.draft_json, code, Date.now() + CODE_TTL_MS, Date.now());
 
   try {
     await sendVerificationEmail(email, code);
@@ -213,8 +213,8 @@ async function handleLogin(req, res){
   const email = String(body.email || '').toLowerCase();
   const password = String(body.password || '');
 
-  const pending = findPending.get(email);
-  const user = findUserByEmail.get(email);
+  const pending = await findPending.get(email);
+  const user = await findUserByEmail.get(email);
 
   if (!user && pending){
     return sendJSON(res, 403, { ok: false, needsVerification: true, email, error: 'Please verify your email to finish creating your account.' });
@@ -227,24 +227,24 @@ async function handleLogin(req, res){
   }
 
   const token = generateSessionToken();
-  insertSession.run(token, user.id, Date.now(), Date.now() + SESSION_TTL_MS);
+  await insertSession.run(token, user.id, Date.now(), Date.now() + SESSION_TTL_MS);
   sendJSON(res, 200, { ok: true, token, user: publicUser(user) });
 }
 
 async function handleMe(req, res){
   const token = getBearerToken(req);
-  const session = token && findSession.get(token);
+  const session = token && await findSession.get(token);
   if (!session || Date.now() > session.expires_at){
     return sendJSON(res, 401, { ok: false, error: 'Not signed in.' });
   }
-  const user = findUserById.get(session.user_id);
+  const user = await findUserById.get(session.user_id);
   if (!user) return sendJSON(res, 401, { ok: false, error: 'Not signed in.' });
   sendJSON(res, 200, { ok: true, user: publicUser(user) });
 }
 
 async function handleLogout(req, res){
   const token = getBearerToken(req);
-  if (token) deleteSession.run(token);
+  if (token) await deleteSession.run(token);
   sendJSON(res, 200, { ok: true });
 }
 
@@ -259,35 +259,35 @@ async function handleAdminLogin(req, res){
     return sendJSON(res, 401, { ok: false, error: 'Incorrect admin email or password.' });
   }
   const token = generateSessionToken();
-  insertAdminSession.run(token, Date.now(), Date.now() + ADMIN_SESSION_TTL_MS);
+  await insertAdminSession.run(token, Date.now(), Date.now() + ADMIN_SESSION_TTL_MS);
   sendJSON(res, 200, { ok: true, token, expiresAt: Date.now() + ADMIN_SESSION_TTL_MS });
 }
 
 async function handleAdminUsers(req, res){
-  if (!requireAdmin(req, res)) return;
+  if (!await requireAdmin(req, res)) return;
   const url = new URL(req.url, `http://${req.headers.host}`);
   const query = String(url.searchParams.get('q') || '').trim().toLowerCase();
-  const users = listUsers.all()
+  const users = (await listUsers.all())
     .filter(user => !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))
     .map(user => ({ ...user, is_disabled: Boolean(user.is_disabled) }));
   sendJSON(res, 200, { ok: true, users });
 }
 
 async function handleAdminUserAction(req, res){
-  if (!requireAdmin(req, res)) return;
+  if (!await requireAdmin(req, res)) return;
   const userId = new URL(req.url, `http://${req.headers.host}`).pathname.split('/').at(-1);
-  const user = findManagedUser.get(userId);
+  const user = await findManagedUser.get(userId);
   if (!user) return sendJSON(res, 404, { ok: false, error: 'User not found.' });
   const body = await readBody(req);
   if (body.action === 'disable' || body.action === 'enable'){
     const disabled = body.action === 'disable';
-    setUserDisabled.run(disabled ? 1 : 0, userId);
-    if (disabled) deleteUserSessions.run(userId);
+    await setUserDisabled.run(disabled, userId);
+    if (disabled) await deleteUserSessions.run(userId);
     return sendJSON(res, 200, { ok: true, user: { ...user, is_disabled: disabled } });
   }
   if (body.action === 'delete'){
-    deleteUserSessions.run(userId);
-    deleteManagedUser.run(userId);
+    await deleteUserSessions.run(userId);
+    await deleteManagedUser.run(userId);
     return sendJSON(res, 200, { ok: true });
   }
   sendJSON(res, 400, { ok: false, error: 'Unsupported account action.' });
@@ -295,7 +295,7 @@ async function handleAdminUserAction(req, res){
 
 async function handleAdminLogout(req, res){
   const token = getAdminToken(req);
-  if (token) deleteAdminSession.run(token);
+  if (token) await deleteAdminSession.run(token);
   sendJSON(res, 200, { ok: true });
 }
 
