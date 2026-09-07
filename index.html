@@ -1195,7 +1195,7 @@ input:focus, select:focus{ border-color: var(--brand); }
     </div>
     <div class="field">
       <label>Current balance</label>
-      <div class="amount-input"><span>£</span><input type="number" id="obBalance" placeholder="0.00"></div>
+      <div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="obBalance" placeholder="0.00"></div>
     </div>
     <div class="onboard-footer"><button class="btn-next" id="obNextBalance">Continue</button></div>
   </div>
@@ -1206,7 +1206,7 @@ input:focus, select:focus{ border-color: var(--brand); }
     <p class="onboard-sub">Add any income sources — loans, jobs, family support. Add as many as you like, and edit these any time from the Income tab.</p>
     <div class="field"><label>Source name</label><input type="text" id="obIncName" placeholder="Student loan"></div>
     <div class="field-row">
-      <div class="field"><label>Amount</label><div class="amount-input"><span>£</span><input type="number" id="obIncAmount" placeholder="1200"></div></div>
+      <div class="field"><label>Amount</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="obIncAmount" placeholder="1200"></div></div>
       <div class="field"><label>Frequency</label>
         <select id="obIncFreq">
           <option value="daily">Daily</option>
@@ -1232,7 +1232,7 @@ input:focus, select:focus{ border-color: var(--brand); }
     <p class="onboard-sub">Rent, subscriptions, phone plan — anything that comes out regularly. Tag each as a Need or a Want; we'll suggest one, but it's your call.</p>
     <div class="field"><label>Bill name</label><input type="text" id="obBillName" placeholder="Rent"></div>
     <div class="field-row">
-      <div class="field"><label>Amount</label><div class="amount-input"><span>£</span><input type="number" id="obBillAmount" placeholder="500"></div></div>
+      <div class="field"><label>Amount</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="obBillAmount" placeholder="500"></div></div>
       <div class="field"><label>Category</label>
         <select id="obBillCategory">
           <option>Housing</option><option>Utilities</option><option>Subscription</option><option>Transport</option><option>Food</option><option>Other</option>
@@ -1274,10 +1274,10 @@ input:focus, select:focus{ border-color: var(--brand); }
       <button type="button" data-val="debt">Paying off debt</button>
     </div>
     <div class="field-row">
-      <div class="field"><label>Target</label><div class="amount-input"><span>£</span><input type="number" id="obGoalTarget" placeholder="500"></div></div>
-      <div class="field"><label>Current</label><div class="amount-input"><span>£</span><input type="number" id="obGoalCurrent" placeholder="0"></div></div>
+      <div class="field"><label>Target</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="obGoalTarget" placeholder="500"></div></div>
+      <div class="field"><label>Current</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="obGoalCurrent" placeholder="0"></div></div>
     </div>
-    <div class="field"><label>Weekly contribution</label><div class="amount-input"><span>£</span><input type="number" id="obGoalWeekly" placeholder="15"></div></div>
+    <div class="field"><label>Weekly contribution</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="obGoalWeekly" placeholder="15"></div></div>
     <button class="add-toggle" id="obAddGoal">+ Add this goal</button>
     <div class="onboard-list" id="obGoalsList"></div>
     <button class="onboard-skip" id="obSkipGoals">Skip for now</button>
@@ -1358,7 +1358,7 @@ input:focus, select:focus{ border-color: var(--brand); }
     <div class="wordmark">Save<span>San</span></div>
     <div style="display:flex; gap:8px;">
       <button class="account-btn" id="accountBtn">A</button>
-      <button class="settings-btn" id="currencyBtn" aria-label="Change currency">£</button>
+      <button class="settings-btn" id="currencyBtn" aria-label="Change currency">GBP</button>
       <button class="settings-btn" id="settingsBtn" aria-label="Budget split settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
       </button>
@@ -1383,7 +1383,7 @@ input:focus, select:focus{ border-color: var(--brand); }
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
         </div>
-        <div class="balance-value" id="balanceDisplay"><span class="cur">£</span><span id="balanceNum">0</span></div>
+        <div class="balance-value" id="balanceDisplay"><span class="cur currency-symbol">£</span><span id="balanceNum">0</span></div>
         <input type="number" class="balance-edit-input" id="balanceEditInput" style="display:none;" />
         <div class="balance-sub" id="balanceSub">Updated just now</div>
         <svg class="sparkline" id="sparkline" viewBox="0 0 300 44" preserveAspectRatio="none"></svg>
@@ -1480,7 +1480,7 @@ input:focus, select:focus{ border-color: var(--brand); }
       <div class="add-panel" id="incomePanel">
         <div class="field"><label>Source name</label><input type="text" id="incName" placeholder="Student loan"></div>
         <div class="field-row">
-          <div class="field"><label>Amount</label><div class="amount-input"><span>£</span><input type="number" id="incAmount" placeholder="1200"></div></div>
+          <div class="field"><label>Amount</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="incAmount" placeholder="1200"></div></div>
           <div class="field"><label>Frequency</label>
             <select id="incFreq">
               <option value="daily">Daily</option>
@@ -1509,7 +1509,7 @@ input:focus, select:focus{ border-color: var(--brand); }
       <div class="add-panel" id="billPanel">
         <div class="field"><label>Bill name</label><input type="text" id="billName" placeholder="Rent"></div>
         <div class="field-row">
-          <div class="field"><label>Amount</label><div class="amount-input"><span>£</span><input type="number" id="billAmount" placeholder="500"></div></div>
+          <div class="field"><label>Amount</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="billAmount" placeholder="500"></div></div>
           <div class="field"><label>Category</label>
             <select id="billCategory">
               <option>Housing</option>
@@ -1559,10 +1559,10 @@ input:focus, select:focus{ border-color: var(--brand); }
           <button type="button" data-val="debt">Paying off debt</button>
         </div>
         <div class="field-row">
-          <div class="field"><label>Target amount</label><div class="amount-input"><span>£</span><input type="number" id="goalTarget" placeholder="500"></div></div>
-          <div class="field"><label>Current amount</label><div class="amount-input"><span>£</span><input type="number" id="goalCurrent" placeholder="120"></div></div>
+          <div class="field"><label>Target amount</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="goalTarget" placeholder="500"></div></div>
+          <div class="field"><label>Current amount</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="goalCurrent" placeholder="120"></div></div>
         </div>
-        <div class="field"><label>Weekly contribution</label><div class="amount-input"><span>£</span><input type="number" id="goalWeekly" placeholder="15"></div></div>
+        <div class="field"><label>Weekly contribution</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="goalWeekly" placeholder="15"></div></div>
         <button class="submit-btn" id="goalSubmit">Add goal</button>
       </div>
       <div id="goalsList"></div>
@@ -1604,7 +1604,7 @@ input:focus, select:focus{ border-color: var(--brand); }
     <h3>Log an expense</h3>
     <div class="field"><label>What was it?</label><input type="text" id="expName" placeholder="Coffee"></div>
     <div class="field-row">
-      <div class="field"><label>Amount</label><div class="amount-input"><span>£</span><input type="number" id="expAmount" placeholder="4.50"></div></div>
+      <div class="field"><label>Amount</label><div class="amount-input"><span class="currency-symbol">£</span><input type="number" id="expAmount" placeholder="4.50"></div></div>
       <div class="field"><label>Category</label>
         <select id="expCategory">
           <option>Food</option>
@@ -1689,6 +1689,22 @@ function fmt(n){
 // the sign is already implied by colour/context (e.g. a bill row).
 function fmtAbs(n){
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: state.homeCurrency || 'GBP' }).format(Math.abs(n));
+}
+
+function currencySymbol(){
+  const code = state.homeCurrency || 'GBP';
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: code })
+      .formatToParts(0).find(part => part.type === 'currency')?.value || code;
+  } catch { return code; }
+}
+
+function renderCurrencyUI(){
+  const code = state.homeCurrency || 'GBP';
+  const symbol = currencySymbol();
+  document.querySelectorAll('.currency-symbol').forEach(el => { el.textContent = symbol; });
+  const button = document.getElementById('currencyBtn');
+  if (button) { button.textContent = code; button.setAttribute('aria-label', `Change currency (${code})`); }
 }
 
 function daysBetween(a, b){
@@ -2900,7 +2916,7 @@ function renderGoalsStep(){
   const list = document.getElementById('obGoalsList');
   list.innerHTML = state.goals.length ? state.goals.map(g => `
     <div class="onboard-list-item">
-      <div class="info"><div class="title">${g.name}</div><div class="sub">${g.type === 'debt' ? 'Paying off' : 'Saving toward'} · £${g.weekly}/wk</div></div>
+      <div class="info"><div class="title">${g.name}</div><div class="sub">${g.type === 'debt' ? 'Paying off' : 'Saving toward'} · ${fmtAbs(g.weekly)}/wk</div></div>
       <div class="amt">${fmtAbs(g.current)} / ${fmtAbs(g.target)}</div>
       <button class="delete-btn" data-delete="goal:${g.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>`).join('') : '';
@@ -3229,14 +3245,14 @@ function renderHome(){
   const m = getDashboardMetrics();
 
   const availEl = document.getElementById('availUntilIncome');
-  countUp(availEl, m.availUntilIncome, '£', 2);
+  countUp(availEl, m.availUntilIncome, currencySymbol(), 2);
   availEl.style.color = m.availUntilIncome < 0 ? 'var(--coral)' : 'var(--text)';
   document.getElementById('availUntilIncomeNote').textContent = m.nextIncome
     ? `After ${m.billsBefore.length} bill${m.billsBefore.length !== 1 ? 's' : ''} due before ${relDate(m.nextIncome.date).toLowerCase()}`
     : 'Add an income source for a real countdown';
 
   const safeEl = document.getElementById('safeWeekly');
-  countUp(safeEl, Math.max(m.safeWeekly, 0), '£', 2);
+  countUp(safeEl, Math.max(m.safeWeekly, 0), currencySymbol(), 2);
   safeEl.style.color = m.safeWeekly < 0 ? 'var(--coral)' : 'var(--text)';
   document.getElementById('safeWeeklyNote').textContent = m.cappedByCash
     ? 'Capped by your bills — below your 30% wants target'
@@ -3430,7 +3446,7 @@ function renderGoals(){
         ${ringSVG(pct, g.type)}
         <div class="list-main">
           <div class="list-title">${g.name}</div>
-          <div class="list-sub">${g.type === 'debt' ? 'Paying off' : 'Saving toward'} · £${g.weekly}/wk</div>
+          <div class="list-sub">${g.type === 'debt' ? 'Paying off' : 'Saving toward'} · ${fmtAbs(g.weekly)}/wk</div>
         </div>
         <div class="goal-pct">${pct}%</div>
         <button class="delete-btn" data-delete="goal:${g.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -3565,6 +3581,7 @@ function renderTransactions(){
 // Three states now, checked in order: signed out -> auth screen;
 // signed in but not onboarded -> the wizard; both done -> dashboard.
 function renderAll(){
+  renderCurrencyUI();
   renderAuthGate();
   renderAppGate();
   if (!state.auth.user || !state.onboarded) return;
