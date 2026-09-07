@@ -1187,7 +1187,12 @@ input:focus, select:focus{ border-color: var(--brand); }
   <!-- Step 0: balance -->
   <div class="onboard-step active" id="ob-step-0">
     <h2 class="display">What's in your account right now?</h2>
-    <p class="onboard-sub">Your starting point — you can update this any time from the dashboard.</p>
+    <p class="onboard-sub">Choose the currency you use most, then add your starting point. You can change it later.</p>
+    <div class="field">
+      <label>Home currency</label>
+      <input type="text" id="obCurrency" value="GBP" maxlength="3" placeholder="GBP" style="text-transform:uppercase">
+      <div style="font-size:11px;color:var(--text-muted);margin-top:5px;">Use a three-letter code, for example GBP, USD, EUR, NGN, JPY or AUD.</div>
+    </div>
     <div class="field">
       <label>Current balance</label>
       <div class="amount-input"><span>£</span><input type="number" id="obBalance" placeholder="0.00"></div>
@@ -2978,6 +2983,9 @@ function initOnboarding(){
   // Step 0 — balance
   document.getElementById('obNextBalance').addEventListener('click', () => {
     const val = parseFloat(document.getElementById('obBalance').value);
+    const currency = document.getElementById('obCurrency').value.trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)){ showToast('Enter a three-letter currency code'); return; }
+    state.homeCurrency = currency;
     setBalance(isNaN(val) ? 0 : val);
     goToStep(1);
   });
