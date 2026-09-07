@@ -18,18 +18,21 @@ const PORT = process.env.PORT || 3001;
 const CODE_TTL_MS = 10 * 60 * 1000;      // codes expire after 10 minutes
 const RESEND_COOLDOWN_MS = 60 * 1000;     // one resend per 60 seconds
 const MAX_ATTEMPTS = 5;                   // wrong-code guesses allowed per code
+const BODY_LIMIT_BYTES = 600000;
+const rateLimits = new Map();
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const indexPath = path.join(__dirname, 'index.html');
 const adminPath = path.join(__dirname, 'admin.html');
+const legalPath = path.join(__dirname, 'legal.html');
 
 // ---------------- Prepared statements ----------------
 const findUserByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
 const findUserById = db.prepare('SELECT * FROM users WHERE id = ?');
 const insertUser = db.prepare(`
-  INSERT INTO users (id, name, email, password_hash, dob, phone, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO users (id, name, email, password_hash, dob, phone, created_at, terms_accepted_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const findPending = db.prepare('SELECT * FROM pending_verifications WHERE email = ?');
 const upsertPending = db.prepare(`
@@ -79,7 +82,7 @@ function sendJSON(res, status, data){
 function readBody(req){
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', chunk => { data += chunk; });
+    req.on('data', chunk => { data += chunk; if (data.length > BODY_LIMIT_BYTES) reject(Object.assign(new Error('Request too large.'), { status: 413 })); });
     req.on('end', () => {
       if (!data) return resolve({});
       try { resolve(JSON.parse(data)); }
@@ -87,6 +90,16 @@ function readBody(req){
     });
     req.on('error', reject);
   });
+}
+
+function rateLimit(req, scope, max, windowMs){
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const key = `${scope}:${ip}`, now = Date.now();
+  const entry = rateLimits.get(key) || { count: 0, resetAt: now + windowMs };
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + windowMs; }
+  entry.count++;
+  rateLimits.set(key, entry);
+  return entry.count > max;
 }
 
 function publicUser(user){
@@ -128,13 +141,15 @@ async function requireAdmin(req, res){
 // ---------------- Route handlers ----------------
 
 async function handleSignup(req, res){
+  if (rateLimit(req, 'signup', 5, 15 * 60 * 1000)) return sendJSON(res, 429, { ok: false, error: 'Too many sign-up attempts. Please try again later.' });
   const body = await readBody(req);
-  const { name, email, password, dob, phone } = body;
+  const { name, email, password, dob, phone, agreed } = body;
   const errors = validateSignup({ name, email, password, dob, phone });
 
   if (await findUserByEmail.get(String(email || '').toLowerCase())){
     errors.email = 'An account with this email already exists.';
   }
+  if (agreed !== true) errors.terms = 'You must agree to the Terms and Privacy Policy.';
   if (Object.keys(errors).length){
     return sendJSON(res, 400, { ok: false, errors });
   }
@@ -147,7 +162,8 @@ async function handleSignup(req, res){
     email: normalizedEmail,
     password_hash: hashPassword(password),
     dob,
-    phone
+    phone,
+    terms_accepted_at: Date.now()
   };
 
   await upsertPending.run(normalizedEmail, JSON.stringify(draft), code, Date.now() + CODE_TTL_MS, Date.now());
@@ -182,7 +198,7 @@ async function handleVerify(req, res){
   }
 
   const draft = JSON.parse(pending.draft_json);
-  await insertUser.run(draft.id, draft.name, draft.email, draft.password_hash, draft.dob, draft.phone, Date.now());
+  await insertUser.run(draft.id, draft.name, draft.email, draft.password_hash, draft.dob, draft.phone, Date.now(), draft.terms_accepted_at);
   await deletePending.run(email);
 
   const token = generateSessionToken();
@@ -214,6 +230,7 @@ async function handleResend(req, res){
 }
 
 async function handleLogin(req, res){
+  if (rateLimit(req, 'login', 12, 15 * 60 * 1000)) return sendJSON(res, 429, { ok: false, error: 'Too many sign-in attempts. Please try again later.' });
   const body = await readBody(req);
   const email = String(body.email || '').toLowerCase();
   const password = String(body.password || '');
@@ -280,6 +297,7 @@ async function handleUserData(req, res){
 }
 
 async function handleAdminLogin(req, res){
+  if (rateLimit(req, 'admin', 8, 15 * 60 * 1000)) return sendJSON(res, 429, { ok: false, error: 'Too many admin sign-in attempts. Please try again later.' });
   if (!adminConfigured()){
     return sendJSON(res, 503, { ok: false, error: 'Admin access has not been configured yet.' });
   }
@@ -350,9 +368,9 @@ const server = createServer(async (req, res) => {
     return sendJSON(res, 204, {});
   }
   const url = new URL(req.url, `http://${req.headers.host}`);
-  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')){
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin' || url.pathname === '/terms' || url.pathname === '/privacy')){
     try {
-      const html = await readFile(url.pathname === '/admin' ? adminPath : indexPath);
+      const html = await readFile(url.pathname === '/admin' ? adminPath : (url.pathname === '/' ? indexPath : legalPath));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(html);
     } catch (err) {
@@ -374,7 +392,7 @@ const server = createServer(async (req, res) => {
     await handler(req, res);
   } catch (err){
     console.error(err);
-    sendJSON(res, 500, { ok: false, error: 'Server error.' });
+    sendJSON(res, err.status || 500, { ok: false, error: err.message === 'Request too large.' ? err.message : 'Server error.' });
   }
 });
 

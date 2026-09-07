@@ -73,3 +73,5 @@ await pool.query(`
     updated_at BIGINT NOT NULL
   );
 `);
+
+await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at BIGINT');

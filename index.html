@@ -1075,7 +1075,7 @@ input:focus, select:focus{ border-color: var(--brand); }
 
       <label class="terms-row">
         <input type="checkbox" id="suTerms">
-        <span>I agree to SaveSan's <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</span>
+        <span>I agree to SaveSan's <a href="/terms" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span>
       </label>
 
       <button class="submit-btn" id="signupSubmit" style="background:var(--brand); color:#06120E; padding:14px;">Create account</button>
@@ -1217,6 +1217,7 @@ input:focus, select:focus{ border-color: var(--brand); }
           <option value="custom">Custom interval</option>
           <option value="oneoff">One-off</option>
         </select>
+        <input id="obIncCustomDays" type="number" min="1" placeholder="Custom days" style="margin-top:8px">
       </div>
     </div>
     <div class="field"><label>Next payment date</label><input type="date" id="obIncDate"></div>
@@ -1248,6 +1249,7 @@ input:focus, select:focus{ border-color: var(--brand); }
           <option value="yearly">Yearly</option>
           <option value="custom">Custom interval</option>
         </select>
+        <input id="obBillCustomDays" type="number" min="1" placeholder="Custom days" style="margin-top:8px">
       </div>
       <div class="field"><label>Next due date</label><input type="date" id="obBillDate"></div>
     </div>
@@ -1491,6 +1493,7 @@ input:focus, select:focus{ border-color: var(--brand); }
               <option value="custom">Custom interval</option>
               <option value="oneoff">One-off</option>
             </select>
+            <input id="incCustomDays" type="number" min="1" placeholder="Custom days" style="margin-top:8px">
           </div>
         </div>
         <div class="field"><label>Next payment date</label><input type="date" id="incDate"></div>
@@ -1530,6 +1533,7 @@ input:focus, select:focus{ border-color: var(--brand); }
               <option value="yearly">Yearly</option>
               <option value="custom">Custom interval</option>
             </select>
+            <input id="billCustomDays" type="number" min="1" placeholder="Custom days" style="margin-top:8px">
           </div>
           <div class="field"><label>Next due date</label><input type="date" id="billDate"></div>
         </div>
@@ -1628,8 +1632,18 @@ input:focus, select:focus{ border-color: var(--brand); }
     <h3>Change home currency</h3>
     <p style="font-size:12.5px;color:var(--text-muted);margin:-8px 0 16px;line-height:1.5;">Choose any ISO currency code, such as USD, EUR, NGN, JPY or AUD. Rates refresh daily when SaveSan opens.</p>
     <div class="field"><label>Currency code</label><input id="currencyCode" maxlength="3" placeholder="USD" style="text-transform:uppercase"></div>
-    <div class="field"><label>Convert</label><select id="currencyScope"><option value="all">My full dashboard</option><option value="recent">Transactions from the last 14 days only</option></select></div>
+    <div class="field"><label>Convert</label><select id="currencyScope"><option value="all">My full dashboard</option></select><div style="font-size:11px;color:var(--text-muted);margin-top:5px;">All balances and plans are converted together to keep your figures accurate.</div></div>
     <button class="submit-btn" id="currencySave">Update currency</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="recurringBackdrop">
+  <div class="modal">
+    <div class="modal-handle"></div><h3>Update recent payments</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);margin:-8px 0 16px;line-height:1.5;">Confirm what happened since your last check-in. Nothing changes until you save.</p>
+    <div id="recurringReviewList"></div>
+    <div class="field"><label>Other expense (optional)</label><input id="otherExpenseName" placeholder="e.g. Groceries"><input id="otherExpenseAmount" type="number" min="0.01" step="0.01" placeholder="Amount" style="margin-top:8px"><input id="otherExpenseDate" type="date" style="margin-top:8px"></div>
+    <button class="submit-btn" id="recurringSave">Save updates</button><button class="onboard-skip" id="recurringSkip" type="button">Skip for now</button>
   </div>
 </div>
 
@@ -1690,6 +1704,11 @@ function fmt(n){
 function fmtAbs(n){
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: state.homeCurrency || 'GBP' }).format(Math.abs(n));
 }
+
+function escapeHtml(value){ const el = document.createElement('div'); el.textContent = String(value ?? ''); return el.innerHTML; }
+function isPositiveAmount(value){ return Number.isFinite(Number(value)) && Number(value) > 0; }
+function isSupportedCurrency(code){ try { return typeof Intl.supportedValuesOf !== 'function' || Intl.supportedValuesOf('currency').includes(code); } catch { return false; } }
+function customDaysFrom(freq, fieldId){ const days = Number(document.getElementById(fieldId)?.value); return freq === 'custom' ? (Number.isInteger(days) && days > 0 ? days : null) : null; }
 
 function currencySymbol(){
   const code = state.homeCurrency || 'GBP';
@@ -1904,7 +1923,7 @@ async function signUpEmail({ name, email, password, dob, phone }){
   if (!phone || phone.replace(/\D/g, '').length < 7) errors.phone = 'Enter a valid phone number.';
   if (Object.keys(errors).length) return { ok: false, errors };
 
-  return apiRequest('/api/signup', { name, email, password, dob, phone });
+  return apiRequest('/api/signup', { name, email, password, dob, phone, agreed: true });
 }
 
 async function signInEmail({ email, password }){
@@ -1953,6 +1972,7 @@ async function restoreSession(){
     const result = await apiRequest('/api/me', null, saved.token, 'GET');
     if (!result.ok){
       localStorage.removeItem(storageKey('session'));
+      showToast('Your session ended. Please sign in again.');
       return;
     }
     state.auth.user = result.user;
@@ -1961,6 +1981,7 @@ async function restoreSession(){
     refreshCurrencyRates();
   } catch {
     localStorage.removeItem(storageKey('session'));
+    showToast('We could not restore your session. Please sign in again.');
   }
 }
 
@@ -1987,15 +2008,9 @@ async function saveHomeCurrency(){
   const rates = await refreshCurrencyRates();
   const rate = rates?.[code];
   if (!rate) return showToast('That currency is unavailable right now. Try again after rates refresh.');
-  const all = document.getElementById('currencyScope').value === 'all';
   const convert = value => Number(value || 0) * rate;
-  if (all) {
-    state.balance = convert(state.balance);
-    ['incomeSources','bills','goals','expenses'].forEach(key => state[key].forEach(item => { ['amount','target','current','weekly'].forEach(field => { if (typeof item[field] === 'number') item[field] = convert(item[field]); }); }));
-  } else {
-    state.expenses.filter(e => Date.now() - new Date(e.date).getTime() <= 14 * 86400000)
-      .forEach(e => { e.amount = convert(e.amount); e.currency = code; e.exchangeRate = rate; });
-  }
+  state.balance = convert(state.balance);
+  ['incomeSources','bills','goals','expenses'].forEach(key => state[key].forEach(item => { ['amount','target','current','weekly'].forEach(field => { if (typeof item[field] === 'number') item[field] = convert(item[field]); }); }));
   state.homeCurrency = code;
   state.currencyRateSnapshot = { base: code, rates: { [code]: 1 }, fetchedAt: Date.now() };
   notify(); document.getElementById('currencyBackdrop').classList.remove('open'); showToast(`Home currency changed to ${code}`);
@@ -2058,30 +2073,29 @@ function completeOnboarding(){
 let checkinOpen = false;
 function runDailyRecurringCheckin(){
   if (checkinOpen || state.lastCheckInDate === todayISO()) return;
-  const due = state.bills.filter(b => new Date(b.date) <= new Date(todayISO()));
-  if (!due.length) { state.lastCheckInDate = todayISO(); notify(); return; }
+  const dueBills = state.bills.filter(b => new Date(b.date) <= new Date(todayISO()));
+  const dueIncome = state.incomeSources.filter(i => new Date(i.date) <= new Date(todayISO()));
+  if (!dueBills.length && !dueIncome.length) { state.lastCheckInDate = todayISO(); notify(); return; }
   checkinOpen = true;
-  due.forEach(bill => {
-    const paid = confirm(`${bill.name} (${fmtAbs(bill.amount)}) was due ${relDate(bill.date).toLowerCase()}. Was it paid?`);
-    if (paid) {
-      addExpense({ name: bill.name, amount: bill.amount, category: bill.category, date: bill.date });
-      const suggested = advanceByFreq(bill.date, bill.freq, bill.customDays).toISOString().slice(0, 10);
-      bill.date = prompt(`When is the next ${bill.name} payment?`, suggested) || suggested;
-      state.recurringEvents.push({ id: uid(), billId: bill.id, status: 'paid', date: todayISO() });
-    } else {
-      const next = prompt(`Skip ${bill.name}. Enter its new next-payment date (YYYY-MM-DD), or leave blank if there are no future payments.`, '');
-      if (next) { bill.date = next; state.recurringEvents.push({ id: uid(), billId: bill.id, status: 'skipped', date: todayISO() }); }
-      else { state.bills = state.bills.filter(b => b.id !== bill.id); state.recurringEvents.push({ id: uid(), billId: bill.id, status: 'ended', date: todayISO() }); }
-    }
+  const row = (item, kind) => `<div class="field" data-review-kind="${kind}" data-review-id="${item.id}"><label>${kind === 'bill' ? 'Bill' : 'Income'}: ${escapeHtml(item.name)} · ${fmtAbs(item.amount)}</label><select class="review-status"><option value="paid">${kind === 'bill' ? 'Paid' : 'Received'}</option><option value="skipped">Skipped / not received</option><option value="end">No future payments</option></select><input class="review-next-date" type="date" value="${advanceByFreq(item.date, item.freq, item.customDays).toISOString().slice(0,10)}" style="margin-top:8px"></div>`;
+  document.getElementById('recurringReviewList').innerHTML = dueBills.map(b => row(b, 'bill')).join('') + dueIncome.map(i => row(i, 'income')).join('');
+  document.getElementById('otherExpenseDate').value = todayISO();
+  document.getElementById('recurringBackdrop').classList.add('open');
+}
+
+function saveRecurringCheckin(skip = false){
+  if (!skip) document.querySelectorAll('[data-review-kind]').forEach(row => {
+    const id = row.dataset.reviewId, kind = row.dataset.reviewKind, status = row.querySelector('.review-status').value;
+    const list = kind === 'bill' ? state.bills : state.incomeSources;
+    const item = list.find(x => x.id === id); if (!item) return;
+    if (status === 'paid') { if (kind === 'bill') addExpense({ name:item.name, amount:item.amount, category:item.category, date:item.date }); else state.balance += item.amount; }
+    if (status === 'end' || item.freq === 'oneoff') { if (kind === 'bill') state.bills = state.bills.filter(x => x.id !== id); else state.incomeSources = state.incomeSources.filter(x => x.id !== id); }
+    else { const next = row.querySelector('.review-next-date').value; if (/^\d{4}-\d{2}-\d{2}$/.test(next)) item.date = next; }
+    state.recurringEvents.push({ id:uid(), itemId:id, kind, status, date:todayISO() });
   });
-  if (confirm('Did you make any other expenses since your last check-in?')) {
-    const name = prompt('What was it?', '');
-    const amount = Number(prompt('How much was it?', '0'));
-    if (name && amount > 0) addExpense({ name, amount, category: 'Other', date: prompt('Date (YYYY-MM-DD)', todayISO()) || todayISO() });
-  }
-  state.lastCheckInDate = todayISO();
-  checkinOpen = false;
-  notify();
+  const name = document.getElementById('otherExpenseName').value.trim(), amount = Number(document.getElementById('otherExpenseAmount').value);
+  if (!skip && name && isPositiveAmount(amount)) addExpense({ name, amount, category:'Other', date:document.getElementById('otherExpenseDate').value || todayISO() });
+  state.lastCheckInDate = todayISO(); checkinOpen = false; document.getElementById('recurringBackdrop').classList.remove('open'); notify();
 }
 
 // ---------------- Derived / computed selectors ----------------
@@ -2089,8 +2103,13 @@ function runDailyRecurringCheckin(){
 // themselves, so the "safe to spend" formula only lives in one place.
 
 function getNextIncome(){
-  if (state.incomeSources.length === 0) return null;
-  return [...state.incomeSources].sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+  const today = new Date(todayISO());
+  const upcoming = state.incomeSources.filter(i => new Date(i.date) >= today);
+  return upcoming.length ? [...upcoming].sort((a, b) => new Date(a.date) - new Date(b.date))[0] : null;
+}
+
+function incomeTotalInRange(rangeStart, rangeEnd){
+  return state.incomeSources.reduce((sum, income) => sum + projectBillOccurrences(income, rangeStart, rangeEnd).length * income.amount, 0);
 }
 
 function getUpcomingBills(beforeDate){
@@ -2118,6 +2137,7 @@ function advanceByFreq(date, freq, customDays){
 function projectBillOccurrences(bill, rangeStart, rangeEnd){
   const occurrences = [];
   let d = new Date(bill.date);
+  if (bill.freq === 'oneoff') return d >= rangeStart && d < rangeEnd ? [d] : [];
   let guard = 0;
   while (d < rangeStart && guard < 500){ d = advanceByFreq(d, bill.freq, bill.customDays); guard++; }
   guard = 0;
@@ -2158,9 +2178,7 @@ function getDashboardMetrics(){
     horizonDate = d;
   }
 
-  const incomeWithinHorizon = state.incomeSources
-    .filter(i => new Date(i.date) <= horizonDate)
-    .reduce((s, i) => s + i.amount, 0);
+  const incomeWithinHorizon = incomeTotalInRange(now, horizonDate);
   const totalAvailable = state.balance + incomeWithinHorizon;
   const weeklyEquivalentIncome = totalAvailable / weeksUntil;
 
@@ -3000,7 +3018,7 @@ function initOnboarding(){
   document.getElementById('obNextBalance').addEventListener('click', () => {
     const val = parseFloat(document.getElementById('obBalance').value);
     const currency = document.getElementById('obCurrency').value.trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)){ showToast('Enter a three-letter currency code'); return; }
+    if (!/^[A-Z]{3}$/.test(currency) || !isSupportedCurrency(currency)){ showToast('Enter a supported three-letter currency code'); return; }
     state.homeCurrency = currency;
     setBalance(isNaN(val) ? 0 : val);
     goToStep(1);
@@ -3012,9 +3030,9 @@ function initOnboarding(){
     const amount = parseFloat(document.getElementById('obIncAmount').value);
     const freq = document.getElementById('obIncFreq').value;
     const date = document.getElementById('obIncDate').value;
-    if (!name || !amount){ showToast('Add a name and amount'); return; }
-    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '21')) : null;
-    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    if (!name || !isPositiveAmount(amount)){ showToast('Add a name and a positive amount'); return; }
+    const customDays = customDaysFrom(freq, 'obIncCustomDays');
+    if (freq === 'custom' && !customDays) { showToast('Enter the custom number of days'); return; }
     addIncome({ name, amount, freq, date, customDays });
     document.getElementById('obIncName').value = '';
     document.getElementById('obIncAmount').value = '';
@@ -3045,9 +3063,9 @@ function initOnboarding(){
     const category = document.getElementById('obBillCategory').value;
     const freq = document.getElementById('obBillFreq').value;
     const date = document.getElementById('obBillDate').value;
-    if (!name || !amount){ showToast('Add a name and amount'); return; }
-    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '30')) : null;
-    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    if (!name || !isPositiveAmount(amount)){ showToast('Add a name and a positive amount'); return; }
+    const customDays = customDaysFrom(freq, 'obBillCustomDays');
+    if (freq === 'custom' && !customDays) { showToast('Enter the custom number of days'); return; }
     addBill({ name, amount, category, freq, needWant: obBillNeedWant, date, customDays });
     document.getElementById('obBillName').value = '';
     document.getElementById('obBillAmount').value = '';
@@ -3069,7 +3087,7 @@ function initOnboarding(){
     const target = parseFloat(document.getElementById('obGoalTarget').value);
     const current = parseFloat(document.getElementById('obGoalCurrent').value) || 0;
     const weekly = parseFloat(document.getElementById('obGoalWeekly').value) || 0;
-    if (!name || !target){ showToast('Add a name and target'); return; }
+    if (!name || !isPositiveAmount(target) || current < 0 || weekly < 0){ showToast('Add a name and valid positive goal amounts'); return; }
     addGoal({ name, type: goalType, target, current, weekly });
     document.getElementById('obGoalName').value = '';
     document.getElementById('obGoalTarget').value = '';
@@ -3326,9 +3344,9 @@ function initIncomeView(){
     const amount = parseFloat(document.getElementById('incAmount').value);
     const freq = document.getElementById('incFreq').value;
     const date = document.getElementById('incDate').value;
-    if (!name || !amount){ showToast('Add a name and amount'); return; }
-    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '21')) : null;
-    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    if (!name || !isPositiveAmount(amount)){ showToast('Add a name and a positive amount'); return; }
+    const customDays = customDaysFrom(freq, 'incCustomDays');
+    if (freq === 'custom' && !customDays) { showToast('Enter the custom number of days'); return; }
     addIncome({ name, amount, freq, date, customDays });
     document.getElementById('incName').value = '';
     document.getElementById('incAmount').value = '';
@@ -3377,9 +3395,9 @@ function initBillsView(){
     const category = document.getElementById('billCategory').value;
     const freq = document.getElementById('billFreq').value;
     const date = document.getElementById('billDate').value;
-    if (!name || !amount){ showToast('Add a name and amount'); return; }
-    const customDays = freq === 'custom' ? Number(prompt('How many days between payments?', '30')) : null;
-    if (freq === 'custom' && (!customDays || customDays < 1)) return;
+    if (!name || !isPositiveAmount(amount)){ showToast('Add a name and a positive amount'); return; }
+    const customDays = customDaysFrom(freq, 'billCustomDays');
+    if (freq === 'custom' && !customDays) { showToast('Enter the custom number of days'); return; }
     addBill({ name, amount, category, freq, needWant: billNeedWant, date, customDays });
     document.getElementById('billName').value = '';
     document.getElementById('billAmount').value = '';
@@ -3425,7 +3443,7 @@ function initGoalsView(){
     const target = parseFloat(document.getElementById('goalTarget').value);
     const current = parseFloat(document.getElementById('goalCurrent').value) || 0;
     const weekly = parseFloat(document.getElementById('goalWeekly').value) || 0;
-    if (!name || !target){ showToast('Add a name and target'); return; }
+    if (!name || !isPositiveAmount(target) || current < 0 || weekly < 0){ showToast('Add a name and valid positive goal amounts'); return; }
     addGoal({ name, type: newGoalType, target, current, weekly });
     document.getElementById('goalName').value = '';
     document.getElementById('goalTarget').value = '';
@@ -3657,6 +3675,8 @@ initOnboarding();
 initWeeklyReview();
 initAccountButton();
 initCurrencyButton();
+document.getElementById('recurringSave').addEventListener('click', () => saveRecurringCheckin(false));
+document.getElementById('recurringSkip').addEventListener('click', () => saveRecurringCheckin(true));
 
 restoreSession().finally(renderAll);
 
